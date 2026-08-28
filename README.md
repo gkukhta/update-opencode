@@ -1,23 +1,41 @@
-# Update OpenCode CLI + Desktop without replacing ECC or TencentDB
+# Update OpenCode CLI and Desktop
 
-This updates:
+This script updates OpenCode CLI and Desktop GUI on Linux while preserving the
+installed ECC, OpenViking, provider configuration, and user launchers.
 
-- CLI binary: `~/.opencode/bin/opencode` from the GitHub release tarball
-- Desktop GUI: Debian package `opencode` (`/opt/OpenCode/ai.opencode.desktop`)
+Russian version: [README-ru.md](README-ru.md)
 
-[Русская версия README](README-ru.md)
+## What is updated
 
-It does **not** replace ECC, TencentDB, provider catalogs, or user Desktop launchers.
+- CLI: `~/.opencode/bin/opencode` from the official OpenCode GitHub release;
+- Desktop GUI: the `opencode` Debian package under `/opt/OpenCode`.
+
+The CLI and GUI are installed at the same target version. By default, the
+target is the latest GitHub release from `anomalyco/opencode`.
 
 ## What is preserved
 
-- `~/.config/opencode/opencode.jsonc` (ECC + TencentDB plugin list, OpenCodex models, MCP `memory_tencentdb`)
-- `~/.opencode/skills`, `plugins`, `commands`, `tools`, `hooks`
-- `~/.opencode/opencode.json` and `~/.opencode/node_modules` including `@tencentdb-agent-memory/memory-tencentdb`
-- `~/.local/share/applications/*opencode*.desktop` (proxy/env overrides)
-- TencentDB Docker containers and `~/src/TencentDB-Agent-Memory*`
+- `~/.config/opencode/opencode.jsonc`, including models, providers, ECC, and
+  the OpenViking MCP entry;
+- `~/.opencode/skills`, `plugins`, `commands`, `tools`, `hooks`, `node_modules`,
+  and `opencode.json`;
+- the OpenViking MCP proxy at
+  `~/.config/opencode/plugins/openviking/servers/mcp-proxy.mjs`;
+- user `.desktop` launchers under `~/.local/share/applications`;
+- a backup of the configuration and launchers before updating.
 
-The script never runs `opencode uninstall` and never deletes `~/.opencode`.
+The script never runs `opencode uninstall`, never deletes `~/.opencode`, and
+does not reinstall ECC or OpenViking. If ECC/OpenViking wiring is missing, it
+repairs the configuration when the OpenViking proxy is available.
+
+## Requirements
+
+- Linux x86_64 or arm64;
+- `curl`, `tar`, `jq`, `python3`, and `node`;
+- for the GUI: `dpkg`, `dpkg-query`, and `sudo` access.
+
+Updating the CLI requires access to GitHub. The GUI is installed with
+`sudo dpkg -i`.
 
 ## Update
 
@@ -26,58 +44,73 @@ cd ~/src/update-opencode
 bash ./update-opencode.sh
 ```
 
-Current machine layout this was written for:
+If the Desktop updater has already downloaded a `.deb`, the script reuses the
+matching package from
+`~/.cache/@opencode-aidesktop-updater/pending/`.
 
-```text
-CLI  ~/.opencode/bin/opencode          (GitHub release tarball)
-GUI  dpkg package opencode             (/opt/OpenCode)
-ECC  ecc-universal under ~/.opencode
-TencentDB  npm package + MCP from ~/src/TencentDB-Agent-Memory-opencode
-```
-
-## Useful options
+## Options
 
 ```bash
-bash ./update-opencode.sh --help
-
 # Preview without changing anything
 bash ./update-opencode.sh --dry-run
 
 # Pin a version
-bash ./update-opencode.sh --version 1.18.19
+bash ./update-opencode.sh --version 1.18.25
 
-# CLI or GUI only
+# Update only the CLI or only the GUI
 bash ./update-opencode.sh --cli-only
 bash ./update-opencode.sh --gui-only
 
-# After update, run the TencentDB/ECC checker (no live model request)
+# Do not stop a running Desktop
+bash ./update-opencode.sh --no-stop
+
+# Do not repair missing ECC/OpenViking entries
+bash ./update-opencode.sh --no-repair
+
+# Additionally check OpenViking proxy syntax
 bash ./update-opencode.sh --check
+
+# Reinstall even when the requested version is already installed
+bash ./update-opencode.sh --force
 ```
 
-If a Desktop `.deb` was already downloaded by the GUI updater, the script reuses
-`~/.cache/@opencode-aidesktop-updater/pending/` when the version matches.
+The OpenViking proxy path can be overridden:
 
-## After update
+```bash
+OPENVIKING_PROXY=/path/to/mcp-proxy.mjs bash ./update-opencode.sh
+```
 
-Restart OpenCode Desktop. If `opencode web` is running, restart that too: the
-old process keeps the previous CLI binary mapped.
+## Post-update checks
 
-If ECC compiled files are missing, reinstall with:
+After updating, the script checks:
+
+- JSON/JSONC configuration syntax;
+- the compiled ECC files;
+- an enabled `openviking` MCP entry;
+- the existence of the OpenViking proxy.
+
+The `--check` option additionally runs `node --check` on the proxy. No live
+model request is performed.
+
+## After updating
+
+Restart OpenCode Desktop. If `opencode web` is running, restart it as well so it
+loads the new CLI binary.
+
+If the compiled ECC files are missing:
 
 ```bash
 bash ~/src/install-ecc-opencode/install-ecc-opencode.sh
 ```
 
-If the TencentDB adapter needs a full refresh:
-
-```bash
-bash ~/src/install-TencentDB/install-tencentdb-opencode.sh
-```
-
 ## Backups
 
-Config and user `.desktop` files are copied to:
+The configuration and user launchers are copied to:
 
 ```text
 ~/backup-opencode-update/<timestamp>/
 ```
+
+This repository contains only the updater and its documentation. Runtime
+configuration, credentials, and keys from the home directory are not added to
+the repository.

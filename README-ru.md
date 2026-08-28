@@ -1,23 +1,40 @@
-# Обновление OpenCode CLI + Desktop без замены ECC и TencentDB
+# Обновление OpenCode CLI и Desktop
 
-Скрипт обновляет:
+Скрипт обновляет OpenCode CLI и Desktop GUI в Linux, сохраняя установленный
+ECC, OpenViking, конфигурацию провайдеров и пользовательские launchers.
 
-- CLI: `~/.opencode/bin/opencode` из GitHub-релиза (тот же архив, что ставит официальный installer)
-- Desktop GUI: пакет `opencode` (`/opt/OpenCode/ai.opencode.desktop`) через `sudo dpkg -i`
+Английская версия: [README.md](README.md)
 
-Он **не** заменяет ECC, TencentDB, каталог провайдеров/моделей и пользовательские `.desktop`-файлы.
+## Что обновляется
 
-[English version](README.md)
+- CLI: `~/.opencode/bin/opencode` из официального GitHub-релиза OpenCode;
+- Desktop GUI: Debian-пакет `opencode` в `/opt/OpenCode`.
+
+CLI и GUI устанавливаются на одну и ту же целевую версию. По умолчанию версия
+берётся из последнего GitHub-релиза репозитория `anomalyco/opencode`.
 
 ## Что сохраняется
 
-- `~/.config/opencode/opencode.jsonc` (плагины ECC + TencentDB, модели OpenCodex, MCP `memory_tencentdb`)
-- `~/.opencode/skills`, `plugins`, `commands`, `tools`, `hooks`
-- `~/.opencode/opencode.json` и `~/.opencode/node_modules`, включая `@tencentdb-agent-memory/memory-tencentdb`
-- `~/.local/share/applications/*opencode*.desktop` (прокси и переменные окружения)
-- контейнеры TencentDB и репозитории `~/src/TencentDB-Agent-Memory*`
+- `~/.config/opencode/opencode.jsonc`, включая модели, провайдеров, ECC и MCP
+  OpenViking;
+- `~/.opencode/skills`, `plugins`, `commands`, `tools`, `hooks`, `node_modules`
+  и `opencode.json`;
+- OpenViking MCP proxy: `~/.config/opencode/plugins/openviking/servers/mcp-proxy.mjs`;
+- пользовательские `.desktop`-launchers из `~/.local/share/applications`;
+- резервная копия конфигурации и launchers перед обновлением.
 
-Скрипт никогда не запускает `opencode uninstall` и не удаляет `~/.opencode`. CLI меняется только файлом `~/.opencode/bin/opencode`.
+Скрипт не запускает `opencode uninstall`, не удаляет `~/.opencode` и не
+переустанавливает ECC или OpenViking. Если в конфигурации отсутствуют записи
+ECC/OpenViking, они восстанавливаются при условии, что OpenViking proxy найден.
+
+## Требования
+
+- Linux x86_64 или arm64;
+- `curl`, `tar`, `jq`, `python3`, `node`;
+- для GUI: `dpkg`, `dpkg-query` и права `sudo`.
+
+Для обновления CLI нужен доступ к GitHub. Для GUI скрипт устанавливает `.deb`
+через `sudo dpkg -i`.
 
 ## Обновление
 
@@ -26,61 +43,71 @@ cd ~/src/update-opencode
 bash ./update-opencode.sh
 ```
 
-Текущая раскладка, под которую написан скрипт:
+Если Desktop `.deb` уже скачан встроенным updater’ом, скрипт использует его из
+`~/.cache/@opencode-aidesktop-updater/pending/`, если версия совпадает.
 
-```text
-CLI  ~/.opencode/bin/opencode          (официальный curl/tarball)
-GUI  пакет dpkg opencode               (/opt/OpenCode)
-ECC  ecc-universal в ~/.opencode
-TencentDB  npm-пакет + MCP из ~/src/TencentDB-Agent-Memory-opencode
-```
-
-## Полезные опции
+## Опции
 
 ```bash
-bash ./update-opencode.sh --help
-
 # Показать действия без изменений
 bash ./update-opencode.sh --dry-run
 
 # Зафиксировать версию
-bash ./update-opencode.sh --version 1.18.19
+bash ./update-opencode.sh --version 1.18.25
 
-# Только CLI или только GUI
+# Обновить только CLI или только GUI
 bash ./update-opencode.sh --cli-only
 bash ./update-opencode.sh --gui-only
 
-# После обновления прогнать проверку TencentDB/ECC (без живого запроса к модели)
+# Не останавливать запущенный Desktop
+bash ./update-opencode.sh --no-stop
+
+# Не восстанавливать отсутствующие записи ECC/OpenViking
+bash ./update-opencode.sh --no-repair
+
+# Дополнительно проверить синтаксис OpenViking proxy
 bash ./update-opencode.sh --check
+
+# Переустановить даже при совпадении версии
+bash ./update-opencode.sh --force
 ```
 
-Если Desktop `.deb` уже скачал встроенный updater GUI, скрипт повторно использует
-`~/.cache/@opencode-aidesktop-updater/pending/`, когда версия совпадает.
+Путь к OpenViking proxy можно переопределить:
 
-Для GUI нужен `sudo` (`dpkg -i`). Пользовательские launcher-ы с HTTP-прокси
-восстанавливаются после установки пакета.
+```bash
+OPENVIKING_PROXY=/path/to/mcp-proxy.mjs bash ./update-opencode.sh
+```
+
+## Проверки после обновления
+
+После обновления скрипт проверяет:
+
+- синтаксис JSON/JSONC-конфигурации;
+- наличие скомпилированных файлов ECC;
+- включённую MCP-запись `openviking`;
+- существование OpenViking proxy.
+
+Опция `--check` дополнительно выполняет `node --check` для proxy. Живой запрос
+к модели не выполняется.
 
 ## После обновления
 
 Перезапустите OpenCode Desktop. Если запущен `opencode web`, его тоже нужно
-перезапустить: старый процесс продолжает работать со старым CLI.
+перезапустить, чтобы он загрузил новый CLI.
 
-Если пропали скомпилированные файлы ECC:
+Если отсутствуют скомпилированные файлы ECC:
 
 ```bash
 bash ~/src/install-ecc-opencode/install-ecc-opencode.sh
 ```
 
-Если нужен полный refresh адаптера TencentDB:
-
-```bash
-bash ~/src/install-TencentDB/install-tencentdb-opencode.sh
-```
-
 ## Резервные копии
 
-Конфиг и пользовательские `.desktop` копируются в:
+Конфигурация и пользовательские launchers копируются в:
 
 ```text
 ~/backup-opencode-update/<timestamp>/
 ```
+
+Репозиторий содержит только updater и документацию. Рабочие конфиги,
+учётные данные и ключи из домашнего каталога в него не добавляются.
